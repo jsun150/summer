@@ -1,5 +1,5 @@
 # summer
-kaaer
+
 代理dubbo服务网关 模板
 
 把dubbo接口jar包放入到 指定路径下面 按照application服务分服务包。 
@@ -10,4 +10,4 @@ kaaer
 dubbo   泛化调用
 springboot 提供主框架
 javaasist  读取接口包信息(接口文档)
-
+Hystrix 线程隔离 服务降级
