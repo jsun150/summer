@@ -7,7 +7,11 @@
 
 
 用到的框架
+
 dubbo   泛化调用
+
 springboot 提供主框架
+
 javaasist  读取接口包信息(接口文档)
+
 Hystrix 线程隔离 服务降级
