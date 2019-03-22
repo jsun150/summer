@@ -8,7 +8,7 @@
 
 用到的框架
 
-dubbo   泛化调用
+dubbo   泛化调用 -- 服务热替换使用
 
 springboot 提供主框架
 
