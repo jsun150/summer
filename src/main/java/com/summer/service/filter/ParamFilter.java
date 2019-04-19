@@ -1,5 +1,6 @@
 package com.summer.service.filter;
 
+import com.summer.service.common.RequestContext;
 import com.summer.service.dubbo.MethodInfo;
 import com.summer.service.http.RequestBean;
 import org.springframework.stereotype.Component;
@@ -14,7 +15,7 @@ import javax.servlet.http.HttpServletResponse;
 public class ParamFilter implements InvokeFilter{
 
     @Override
-    public void filter(RequestBean bean, MethodInfo methodInfo, HttpServletResponse response) {
+    public void filter(RequestContext context, MethodInfo methodInfo, HttpServletResponse response) {
 
     }
 }

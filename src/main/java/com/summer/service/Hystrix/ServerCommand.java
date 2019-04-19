@@ -7,6 +7,7 @@ import com.netflix.hystrix.*;
 import com.summer.service.common.BusinessExceptionUtil;
 import com.summer.service.common.ClassUtils;
 import com.summer.service.common.MessageCodeEnum;
+import com.summer.service.common.RequestContext;
 import com.summer.service.dubbo.InvokeInstance;
 import com.summer.service.dubbo.MethodInfo;
 import com.summer.service.http.RequestBean;
@@ -14,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.servlet.http.HttpServletResponse;
+import java.util.Map;
 
 /**
  * @author Jook
@@ -48,7 +50,7 @@ public class ServerCommand extends HystrixCommand<String> {
         );
     }
 
-    public ServerCommand(HystirxConfig config, RequestBean requestBean, InvokeInstance.InvokeBean invokeBean, InvokeInstance invokeInstance, HttpServletResponse response) {
+    public ServerCommand(HystirxConfig config, RequestContext context, InvokeInstance.InvokeBean invokeBean, InvokeInstance invokeInstance, HttpServletResponse response) {
         super(Setter.withGroupKey(HystrixCommandGroupKey.Factory.asKey(config.getGroupKey()))
                 .andCommandKey(HystrixCommandKey.Factory.asKey(config.getCommandKey()))
                 .andThreadPoolKey(HystrixThreadPoolKey.Factory.asKey(config.getPoolName()))
@@ -64,13 +66,13 @@ public class ServerCommand extends HystrixCommand<String> {
                 )
         );
         this.invokeBean = invokeBean;
-        this.requestBean = requestBean;
+        this.context = context;
         this.invokeInstance = invokeInstance;
         this.response = response;
     }
 
     private InvokeInstance.InvokeBean invokeBean;
-    private RequestBean requestBean;
+    private RequestContext context;
     private InvokeInstance invokeInstance;
     private HttpServletResponse response;
 
@@ -78,20 +80,18 @@ public class ServerCommand extends HystrixCommand<String> {
     protected String run() throws Exception {
         String result = "system busy";
         try {
-            MethodInfo methodInfo = invokeBean.getPathMethodMap().get(requestBean.getPath());
+            MethodInfo methodInfo = invokeBean.getPathMethodMap().get(context.getPath());
             if (methodInfo == null) {
                 throw BusinessExceptionUtil.build(MessageCodeEnum.PATH_NOT_FOUND);
             }
             //过滤
-            invokeInstance.filter(requestBean, methodInfo, response);
-            Object[][] params = ClassUtils.packageArgs(requestBean, invokeBean.getPathMethodMap().get(requestBean.getPath()));
+            invokeInstance.filter(context, methodInfo, response);
+            Map<String, Object[]> params = ClassUtils.packageArgs(context, invokeBean.getPathMethodMap().get(context.getPath()));
             if (params == null) {
                 invokeBean.getInvokeBean().$invoke(methodInfo.getMethodName(), null, null);
             }
-            String[] nams = new String[params[0].length];
-            for (int i = 0; i < params[0].length; i++) nams[i] = params[0][i].toString();
             //组装参数
-            result = JSONObject.toJSONString(invokeBean.getInvokeBean().$invoke(methodInfo.getMethodName(), nams, params[1]));
+            result = JSONObject.toJSONString(invokeBean.getInvokeBean().$invoke(methodInfo.getMethodName(), (String[]) params.get("parameterTypes"), params.get("args")));
         } catch (BusinessException e) {
             logger.info("业务错误...", e);
             result = e.getMessage();

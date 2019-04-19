@@ -5,21 +5,16 @@ import com.alibaba.dubbo.common.utils.CollectionUtils;
 import com.alibaba.dubbo.config.ReferenceConfig;
 import com.alibaba.dubbo.config.utils.ReferenceConfigCache;
 import com.alibaba.dubbo.rpc.service.GenericService;
-import com.summer.service.common.BusinessExceptionUtil;
 import com.summer.service.common.ClassUtils;
-import com.summer.service.common.MessageCodeEnum;
-import com.summer.service.common.PropertyConfigurer;
+import com.summer.service.common.RequestContext;
 import com.summer.service.filter.FilterWrapper;
 import com.summer.service.filter.InvokeFilter;
-import com.summer.service.http.RequestBean;
+import com.summer.service.rpc.Filter;
+import com.summer.service.rpc.Invoke;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.BeansException;
-import org.springframework.context.ApplicationContext;
-import org.springframework.context.ApplicationContextAware;
-import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Autowired;
 
-import javax.annotation.PostConstruct;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.util.HashMap;
@@ -33,20 +28,13 @@ import java.util.concurrent.ConcurrentHashMap;
  * @author Jook
  * @create 2018-10-20 14:04
  **/
-public abstract class InvokeInstance implements ApplicationContextAware {
+public abstract class InvokeInstance implements Invoke, Filter {
 
     private static final Logger logger = LoggerFactory.getLogger(InvokeInstance.class);
     // requstPath , InvokeBean
     private Map<String, InvokeBean> HTTP_PATH_INVOKE_MAP = new ConcurrentHashMap<>();
-    private ApplicationContext applicationContext;
-    //请求过滤
-    private List<InvokeFilter> filters;
-
-    @PostConstruct
-    public void initFilter() {
-        this.filters = FilterWrapper.createFilter(PropertyConfigurer.getProperty("invoke.filter"), applicationContext);
-    }
-
+    @Autowired
+    private FilterWrapper filterWrapper;
 
     /**
      * 初始化 可使用的 bean
@@ -57,7 +45,7 @@ public abstract class InvokeInstance implements ApplicationContextAware {
      */
     public void createInstance(URL url, ReferenceConfig config, String inter) {
         InvokeBean bean = new InvokeBean(url, config, inter);
-        List<String> paths = ClassUtils.initInterfaceMethods(bean);
+        List<String> paths = ClassUtils.parserInterfaceMethods(bean).getPathList();
         if (CollectionUtils.isEmpty(paths)) {
             return;
         }
@@ -87,27 +75,22 @@ public abstract class InvokeInstance implements ApplicationContextAware {
      */
     public void destory(String application) {
         for (Map.Entry<String, InvokeBean> entry : HTTP_PATH_INVOKE_MAP.entrySet()) {
-           if (entry.getKey().startsWith(application)) {
-               InvokeBean bean = HTTP_PATH_INVOKE_MAP.get(entry.getKey());
-               ReferenceConfigCache.getCache().destroy(bean.getConfig());
-               bean.setInvokeBean(null);
-               bean = null;
-               HTTP_PATH_INVOKE_MAP.remove(entry.getKey());
-           }
-        }
-    }
-
-
-    public void filter(RequestBean bean, MethodInfo methodInfo, HttpServletResponse response) {
-        if (CollectionUtils.isEmpty(filters)) return;
-        for (InvokeFilter filter : filters) {
-            filter.filter(bean, methodInfo, response);
+            if (entry.getKey().startsWith(application)) {
+                InvokeBean bean = HTTP_PATH_INVOKE_MAP.get(entry.getKey());
+                ReferenceConfigCache.getCache().destroy(bean.getConfig());
+                bean.setInvokeBean(null);
+                bean = null;
+                HTTP_PATH_INVOKE_MAP.remove(entry.getKey());
+            }
         }
     }
 
     @Override
-    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
-        this.applicationContext = applicationContext;
+    public void filter(RequestContext context, MethodInfo methodInfo, HttpServletResponse response) {
+        if (CollectionUtils.isEmpty(filterWrapper.getInvokeFilters())) return;
+        for (InvokeFilter filter : filterWrapper.getInvokeFilters()) {
+            filter.filter(context, methodInfo, response);
+        }
     }
 
     public Map<String, InvokeBean> getHTTP_PATH_INVOKE_MAP() {
@@ -131,6 +114,15 @@ public abstract class InvokeInstance implements ApplicationContextAware {
         private URL url;
         private GenericService invokeBean;
         private String application;
+        private List<String> pathList;
+
+        public List<String> getPathList() {
+            return pathList;
+        }
+
+        public void setPathList(List<String> pathList) {
+            this.pathList = pathList;
+        }
 
         public Map<String, MethodInfo> getPathMethodMap() {
             return pathMethodMap;

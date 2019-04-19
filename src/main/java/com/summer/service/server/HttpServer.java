@@ -14,8 +14,18 @@ import javax.servlet.http.HttpServletResponse;
 @Component
 public class HttpServer {
 
+    /**
+     * dubbo
+     */
     @Autowired
     private InvokeInstance invokeInstance;
+
+    /**
+     * http
+     * @param request
+     * @param response
+     */
+
 
     public void getData(HttpServletRequest request, HttpServletResponse response) {
         invokeInstance.invoke(request, response);

@@ -7,21 +7,17 @@ import com.jollychic.an.Paramter;
 import com.summer.service.classLoader.JarLoader;
 import com.summer.service.dubbo.InvokeInstance;
 import com.summer.service.dubbo.MethodInfo;
-import com.summer.service.http.RequestBean;
 import javassist.ClassPool;
 import javassist.CtClass;
-import javassist.CtField;
 import javassist.CtMethod;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.core.convert.support.DefaultConversionService;
-import org.springframework.util.CollectionUtils;
+import org.springframework.web.bind.annotation.RequestMethod;
 
-import java.io.File;
-import java.lang.reflect.Method;
-import java.net.URL;
-import java.net.URLClassLoader;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * 发现服务时候 加载class  -- 全量加载 需要完善
@@ -32,15 +28,15 @@ import java.util.*;
 public class ClassUtils {
 
     private static final Logger logger = LoggerFactory.getLogger(ClassUtils.class);
-    private static DefaultConversionService service = new DefaultConversionService();
+//    private static DefaultConversionService service = new DefaultConversionService();
 
     /**
-     * 解析可对外提供服务的接口
+     * 解析可对外提供服务的接口 method 信息
      *
      * @param invokeBean
      * @return
      */
-    public static List<String> initInterfaceMethods(InvokeInstance.InvokeBean invokeBean) {
+    public static InvokeInstance.InvokeBean parserInterfaceMethods(InvokeInstance.InvokeBean invokeBean) {
         try {
             ClassPool pool = JarLoader.getPool(invokeBean.getApplication());
             CtClass ctClass = pool.get(invokeBean.getInter());
@@ -59,100 +55,72 @@ public class ClassUtils {
                 if (deprecated != null || methodApi == null) continue;
                 //组装methodinfo
                 MethodInfo methodInfo = new MethodInfo();
-                ParameterInfo parameterInfo = new ParameterInfo();
-                methodInfo.setParameterInfo(parameterInfo);
+                methodInfo.setHttpType(RequestMethod.valueOf(methodApi.httpType()));
+                // todo login注解解析
 
                 methodInfo.setMethodName(method.getName());
+
+                //解析param的 参数名字和 参数类型(string) 不能用class
                 CtClass[] paramTypes = method.getParameterTypes();
-                if (paramTypes == null) {
-                    parameterInfo.setParamType(Constants.PARAMTER_TYPE_NULL);
-                } else if (paramTypes != null && paramTypes.length == 1 && paramTypes[0].getName().startsWith("com.jollychic")) {//bean类型参数
-                    CtClass paramClass = pool.get(method.getParameterTypes()[0].getName());
-                    Map<String, String> map = new HashMap<>();
-                    CtField[] ctFields = paramClass.getDeclaredFields();
-                    for (CtField ctField : ctFields) {
-                        map.put(ctField.getName(), ctField.getType().getName());
+                if (paramTypes == null) continue;
+                for (int i = 0; i < paramTypes.length; i++) {
+                    LinkedHashMap<String, String> pm = new LinkedHashMap();
+                    CtClass pt = paramTypes[i];
+                    pt.getName();
+                    Paramter ptAnntation = (Paramter) getParamsAnnotation(method, Paramter.class, i);
+                    if (ptAnntation != null) {
+                        pm.put(ptAnntation.name(), ctClass.getName());
+                    } else {
+                        logger.info("interface:{} | method:{} .paramter别名未配置", invokeBean.getInter(), method.getName());
+                        pm.put("NULL" + i, null);
                     }
-                    String superClassName = paramClass.getSuperclass().getName();
-                    if (!StringUtils.isBlank(superClassName) && !superClassName.equals("java.lang.Object")) {
-                        CtClass superClass = pool.get(superClassName);
-                        for (CtField ctField : superClass.getDeclaredFields()) {
-                            map.put(ctField.getName(), ctField.getType().getName());
-                        }
-                    }
-                    parameterInfo.setBeanParamMap(map);
-                    parameterInfo.setParamType(Constants.PARAMTER_TYPE_BEAN);
-                    parameterInfo.setBeanParamName(paramTypes[0].getName());
-                } else { //其他
-                    LinkedHashMap pm = new LinkedHashMap();
-                    for (int i = 0; i < paramTypes.length; i++) {
-                        CtClass pt = paramTypes[i];
-                        pt.getName();
-                        Paramter ptAnntation = (Paramter) getParamsAnnotation(method, Paramter.class, i);
-                        if (ptAnntation != null) {
-                            pm.put(ptAnntation.name(), pt.getName());
-                        } else {
-                            logger.info("interface:{} | method:{} .paramter别名未配置", invokeBean.getInter(), method.getName());
-                            pm.put("NULL" + i, null);
-                        }
-                    }
-                    parameterInfo.setParamsMap(pm);
-                    parameterInfo.setParamType(Constants.PARAMTER_TYPE_NOT_BEAN);
                 }
                 invokeBean.getPathMethodMap().put(invokeBean.getApplication() + "/" + path, methodInfo);
             }
-            return paths;
+            invokeBean.setPathList(paths);
         } catch (Exception e) {
             e.printStackTrace();
         }
-        return null;
+        return invokeBean;
     }
 
     /**
      * 组装参数
-     *
+     * key : parameterTypes. 参数类型名字,  args . 参数value数组
      * @return
      */
-    public static Object[][] packageArgs(RequestBean requestBean, MethodInfo methodInfo) throws Exception {
-        Object[][] result = null;
-        ParameterInfo parameterInfo = methodInfo.getParameterInfo();
-        //不需要参数传入
-        if (parameterInfo.getParamType() == Constants.PARAMTER_TYPE_NULL) return null;
-        //需要参数
-        if (parameterInfo.getParamType() == Constants.PARAMTER_TYPE_BEAN) {
-            result = new Object[2][1];
-            Map<String, Object> invokeParam = new HashMap<>();
-            JSONObject json = JSONObject.parseObject(requestBean.getPostJson());
-            Map<String, String> map = parameterInfo.getBeanParamMap();
-            for (Map.Entry<String, String> entry : map.entrySet()) {
-                String key = entry.getKey(), classType = entry.getValue();
-                if (json.get(key) != null)
-                    invokeParam.put(key, service.convert(json.getString(key), Class.forName(classType)));
-            }
-            result[0][0] = methodInfo.getParameterInfo().getBeanParamName();
-            result[1][0] = invokeParam;
-        } else if (parameterInfo.getParamType() == Constants.PARAMTER_TYPE_NOT_BEAN) {
-            if (CollectionUtils.isEmpty(requestBean.getRequestParams())) return null;
-            int size = parameterInfo.getParamsMap().size();
-            result = new Object[2][size];
-            Object[] keyResult = new Object[size];
-            Object[] valueReuslt = new Object[size];
-            //按照methodinfo的参数 顺序 封装参数
-            int count = 0;
-            for (Map.Entry<String, String> entry : parameterInfo.getParamsMap().entrySet()) {
-                String key = entry.getKey();
-                String value = entry.getValue();
-                keyResult[count] = value;
-                String[] params = requestBean.getRequestParams().get(key);
-                if (params == null || params.length == 0) {
-                    valueReuslt[count] = null;
-                } else {
-                    valueReuslt[count] = service.convert(params[0], Class.forName(value));
+    public static Map<String, Object[]> packageArgs(RequestContext context, MethodInfo methodInfo) throws Exception {
+        Map<String, Object[]> result = null;
+        Map<String, String> paramsMap = methodInfo.getParameterClass();
+        // 不需要传参数
+        if (paramsMap == null) return result;
+        // 参数名字
+        List<String> paramsTypeName  = new ArrayList<>(paramsMap.size());
+        List<Object> paramValue  = new ArrayList<>(paramsMap.size());
+
+        for (Map.Entry<String, String> entry : paramsMap.entrySet()) {
+            String requestParamValue = context.getRequestParams().get(entry.getKey());
+            //参数 typename
+            paramsTypeName.add(entry.getValue());
+            if (org.apache.commons.lang.StringUtils.isBlank(requestParamValue)) {
+                if (entry.getValue().startsWith("com.jollychic")) {
+                    //兼容一些特殊情况.
+                    paramValue.add(context.getRequestParams());
+                }else {
+                    paramValue.add(null);
                 }
+                continue;
             }
-            result[0] = keyResult;
-            result[1] = valueReuslt;
+            //参数 value -- 用Map表示POJO参数，如果返回值为POJO也将自动转成Map, 基本类型以及Date,List,Map等不需要转换，直接调用
+            if (entry.getValue().startsWith("com.jollychic")) {
+                Map<String, Object> map = JSONObject.parseObject(requestParamValue, Map.class);
+                paramValue.add(map);
+            }else {
+                paramValue.add(requestParamValue);
+            }
         }
+        result.put("parameterTypes",paramsTypeName.toArray());
+        result.put("args", paramValue.toArray());
         return result;
     }
 

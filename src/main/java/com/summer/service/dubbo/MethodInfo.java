@@ -1,18 +1,21 @@
 package com.summer.service.dubbo;
 
-import com.summer.service.common.ParameterInfo;
+import org.springframework.web.bind.annotation.RequestMethod;
 
 import java.util.LinkedHashMap;
-import java.util.Map;
 
 /**
+ * 接口描述 --  方法名字, 提供服务类型, 接口要求, 接口params描述
+ *
  * @author Jook
  * @create 2018-10-22 16:39
  **/
 public class MethodInfo {
 
-    private String HttpType;        //post get
-    private ParameterInfo parameterInfo;
+    // 接口支持的请求类型
+    private RequestMethod HttpType;
+    // 参数类型 有序 -- dubbo 需要目前, key参数名字  value 参数类型
+    private LinkedHashMap<String, String> parameterClass;
     private Boolean login;
     private String methodName;
 
@@ -32,19 +35,19 @@ public class MethodInfo {
         this.login = login;
     }
 
-    public String getHttpType() {
+    public RequestMethod getHttpType() {
         return HttpType;
     }
 
-    public void setHttpType(String httpType) {
+    public void setHttpType(RequestMethod httpType) {
         HttpType = httpType;
     }
 
-    public ParameterInfo getParameterInfo() {
-        return parameterInfo;
+    public LinkedHashMap<String, String> getParameterClass() {
+        return parameterClass;
     }
 
-    public void setParameterInfo(ParameterInfo parameterInfo) {
-        this.parameterInfo = parameterInfo;
+    public void setParameterClass(LinkedHashMap<String, String> parameterClass) {
+        this.parameterClass = parameterClass;
     }
 }

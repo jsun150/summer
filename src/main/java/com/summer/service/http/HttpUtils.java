@@ -1,10 +1,16 @@
 package com.summer.service.http;
 
+import com.alibaba.dubbo.common.utils.CollectionUtils;
 import com.alibaba.dubbo.common.utils.IOUtils;
 import com.alibaba.fastjson.JSON;
 import com.summer.service.common.Constants;
+import com.summer.service.common.MessageCodeEnum;
+import com.summer.service.common.RequestContext;
+import com.summer.service.exception.SuException;
+import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.web.bind.annotation.RequestMethod;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -12,6 +18,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -24,26 +31,34 @@ public class HttpUtils {
     private static final Logger logger = LoggerFactory.getLogger(HttpUtils.class);
 
     /**
-     * 解析http
+     * 解析请求上下文
      *
      * @param request
      * @return
      * @throws Exception
      */
-    public static RequestBean parser(HttpServletRequest request) throws Exception {
-        RequestBean bean = new RequestBean();
-        bean.setHttpType(request.getMethod());
-        if (bean.getHttpType().equalsIgnoreCase(Constants.HTTP_POST)) {
+    public static RequestContext parserRequest(HttpServletRequest request) throws Exception {
+        RequestContext context = new RequestContext();
+        context.setPath(request.getServletPath().replaceFirst("/api/", ""));
+        //解析参数
+        if (request.getMethod().equals(RequestMethod.GET.name())) { //get
+            context.setRequestParams(parserGetParam(request.getParameterMap()));
+            context.setRequestMethod(RequestMethod.GET);
+        } else if (request.getMethod().equals(RequestMethod.POST.name())) { //post
             BufferedReader reader = new BufferedReader(new InputStreamReader(request.getInputStream()));
-            String body = IOUtils.read(reader);
-            bean.setPostJson(body);
-            bean.setRequestParams(parser(body));
+            context.setRequestParams(parserPostParam(IOUtils.read(reader)));
+            context.setRequestMethod(RequestMethod.GET);
         } else {
-            bean.setRequestParams(request.getParameterMap());
+            throw new SuException(MessageCodeEnum.PATH_NOT_FOUND);
         }
-        bean.setPath(request.getServletPath().replaceFirst("/api/", ""));
-        return bean;
+        return context;
+    }
 
+    private static Map<String, String> parserGetParam(Map<String, String[]> map) {
+        Map<String, String> resultMap = new HashMap<>();
+        if (map == null) return resultMap;
+        map.forEach((k,v)-> resultMap.put(k, v[0]));
+        return resultMap;
     }
 
     /**
@@ -52,14 +67,11 @@ public class HttpUtils {
      * @param body
      * @return
      */
-    private static Map<String, String[]> parser(String body) {
+    private static Map<String, String> parserPostParam(String body) {
+        Map<String, String> resultMap = new HashMap<>();
+        if (StringUtils.isBlank(body)) return resultMap;
         Map<String, Object> map = JSON.parseObject(body, Map.class);
-        Map<String, String[]> resultMap = new HashMap<>();
-        map.forEach((k, v) -> {
-            String[] values = new String[1];
-            values[0] = v.toString();
-            resultMap.put(k, values);
-        });
+        map.forEach((k, v) -> resultMap.put(k, String.valueOf(v)));
         return resultMap;
     }
 

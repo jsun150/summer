@@ -3,6 +3,7 @@ package com.summer.service.dubbo;
 import com.summer.service.Hystrix.ServerCommand;
 import com.summer.service.Hystrix.ServerHystrixFactory;
 import com.summer.service.common.MessageCodeEnum;
+import com.summer.service.common.RequestContext;
 import com.summer.service.http.ContentTypeEnum;
 import com.summer.service.http.HttpUtils;
 import com.summer.service.http.RequestBean;
@@ -22,10 +23,10 @@ public class HystrixInvokeInstance extends InvokeInstance {
         try {
             System.out.println(Thread.currentThread().getId());
             long s = System.currentTimeMillis()/1000;
-            RequestBean requestBean = HttpUtils.parser(request);
-            InvokeBean invokeBean = getHTTP_PATH_INVOKE_MAP().get(requestBean.getPath());
+            RequestContext context = HttpUtils.parserRequest(request);
+            InvokeBean invokeBean = getHTTP_PATH_INVOKE_MAP().get(context.getPath());
             if (invokeBean != null) {
-                ServerCommand command = ServerHystrixFactory.getCommand(requestBean, invokeBean, this, response);
+                ServerCommand command = ServerHystrixFactory.getCommand(context, invokeBean, this, response);
                 result = command.queue().get();
             }else {
                 result = MessageCodeEnum.PATH_NOT_FOUND.getMsg();

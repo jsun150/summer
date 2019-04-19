@@ -10,8 +10,8 @@
     <!-- 提供方应用信息，用于计算依赖关系 -->
     <dubbo:application name="summer"/>
     <!-- 使用multicast广播注册中心暴露发现服务地址 -->
-    <dubbo:registry id="dubboRegister" protocol="zookeeper" address="127.0.0.1:2181" client="curator" timeout="30000"/>
-    <!--<dubbo:registry id="dubboRegister" protocol="zookeeper" address="172.31.0.139:2181" client="curator" timeout="30000"/>-->
+    <!--<dubbo:registry id="dubboRegister" protocol="zookeeper" address="127.0.0.1:2181" client="curator" timeout="30000"/>-->
+    <dubbo:registry id="dubboRegister" protocol="zookeeper" address="" client="curator" timeout="30000"/>
 
     <!--以下为生产者配置-->
 

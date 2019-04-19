@@ -1,5 +1,6 @@
 package com.summer.service.filter;
 
+import com.summer.service.common.RequestContext;
 import com.summer.service.dubbo.MethodInfo;
 import com.summer.service.http.RequestBean;
 
@@ -14,9 +15,9 @@ public interface InvokeFilter {
     /**
      * 过滤
      *
-     * @param bean
+     * @param context
      * @param response
      * @return
      */
-    void filter(RequestBean bean, MethodInfo methodInfo, HttpServletResponse response);
+    void filter(RequestContext context, MethodInfo methodInfo, HttpServletResponse response);
 }
